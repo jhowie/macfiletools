@@ -1,4 +1,4 @@
-BINDIR=./usr/local/bin
+BINDIR=/usr/local/bin
 
 all: xsv2xsv dos2unix
 
