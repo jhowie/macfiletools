@@ -4,6 +4,7 @@ all: xsv2xsv dos2unix
 
 clean:
 	rm -f xsv2xsv
+	rm -f dos2unix
 
 install: all
 	install -d -o root -g wheel $(BINDIR)
