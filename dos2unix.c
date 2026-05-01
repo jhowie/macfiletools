@@ -53,7 +53,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # include <sys/errno.h>
 
 int     main (int argc, char *argv []);
-int     convertfile (bool destisunix);
+int     convertfile (bool destisunix, bool utfhandling);
 void    DisplayHelp (void);
 void    OpenInputOrOutputFile (int fd, const char *InputOrOutputFile);
 
@@ -61,7 +61,7 @@ extern int errno;
 
 int main (int argc, char *argv [])
 {
-        bool    destisunix;
+        bool    destisunix, utfhandling = true;
         char    c;
         int     retval;
 
@@ -82,7 +82,7 @@ int main (int argc, char *argv [])
 
         // Now, process the command line arguments
 
-        while ((c = getopt (argc, argv, "hi:o:q:")) != -1) {
+        while ((c = getopt (argc, argv, "hu")) != -1) {
                 // Process the argument
 
                 switch (c) {
@@ -92,6 +92,16 @@ int main (int argc, char *argv [])
 
                                 DisplayHelp ();
                                 exit (0);
+                                break;
+
+                        case 'u':
+                                // The user wants us to leave in the UTF-8
+                                // encoding characters at the beginning of
+                                // a file being converted to UNIX from DOS, or
+                                // not add them to a file being converted to
+                                // DOS from UNIX
+
+                                utfhandling = false;
                                 break;
 
                         default:
@@ -140,7 +150,7 @@ int main (int argc, char *argv [])
         // Call the function that converts the separator in the input file to
         // those we want in the output file
 
-        retval = convertfile (destisunix);
+        retval = convertfile (destisunix, utfhandling);
         if (retval == -1) {
                 // An error occurred. Display an error message and exit
 
@@ -162,12 +172,19 @@ int main (int argc, char *argv [])
 void DisplayHelp (void)
 {
         printf ("Usage:\n\n");
-        printf ("\tdos2unix [input] [output]\n");
-        printf ("\tunix2dos [input] [output]\n");
+        printf ("\tdos2unix [-u] [input] [output]\n");
+        printf ("\tunix2dos [-u] [input] [output]\n");
         printf ("\n");
         printf ("This program converts files from MS-DOS format to UNIX format. The only changes\n");
         printf ("made are to convert CR LF to LF when moving from MS-DOS to UNIX, and LF to CR LF\n");
         printf ("when moving from UNIX to MS-DOS.\n");
+        printf ("\n");
+        printf ("Ordinarily, the UTF-8 prefix (the characters 0xEF 0xBB 0xBF), if present, are\n");
+        printf ("removed when converting from MS-DOS to UNIX, and added, if not already present,\n");
+        printf ("when converting from UNIX to MS-DOS. The -u flag reverses this behavior and\n");
+        printf ("leaves the UTF-8 encoding characters untouched when converting from MS-DOS to\n");
+        printf ("UNIX, and will not add them at the beginning of the output stream (if not\n");
+        printf ("already present) when converting from UNIX format to MS-DOS format.\n");
 }
 
 /* void OpenInputOrOutputFile (int fd, const char *InputOrOutputFile)
@@ -203,7 +220,7 @@ void OpenInputOrOutputFile (int fd, const char *InputOrOutputFile)
         }                
 }
 
-/* int convertfile (bool destisunix)
+/* int convertfile (bool destisunix, bool utfhandling)
 **
 ** This function reads from the standard input (which could be a file or piped
 ** input). It looks for CR LF and translates it to LF when the destination is
@@ -211,12 +228,12 @@ void OpenInputOrOutputFile (int fd, const char *InputOrOutputFile)
 ** MS-DOS
 */
 
-int convertfile (bool destisunix)
+int convertfile (bool destisunix, bool utfhandling)
 {
         char    *linetoconvert = (char *) 0;
         size_t  linesize = 0;
         int     linelength, linecount = 0;
-        bool    malformedline;
+        bool    malformedline, striputf = false;
 
          // Go through the standard input, reading lines
 
@@ -228,6 +245,31 @@ int convertfile (bool destisunix)
                 linecount ++;
                 malformedline = false;
 
+                // If we are handling utf, and this is the first line, we need
+                // to check for the presence of the UTF-8 encoding characters
+                // (0xEF 0xBB 0xBF), and handle them appropriately
+
+                if (utfhandling && (linecount == 1)) {
+                        // This is the first line. Check for the presence of
+                        // UTF-8 encoding characters
+
+                        if ((linetoconvert [0] == (char) 0xEF) && (linetoconvert [1] == (char) 0xBB) && (linetoconvert [2] == (char) 0xBF)) {
+                                // If the destination is UNIX, we need to strip
+                                // the UTF characters from the output stream
+
+                                if (destisunix)
+                                        striputf = true;
+                        }
+                        else {
+                                // There were no UTF characters. If the
+                                // destination is MS-DOS we need to add the
+                                // UTF-8 encoding characters
+
+                                if (! destisunix)
+                                        printf ("%c%c%c", (char) 0xEF, (char) 0xBB, (char) 0xBF);
+                        }
+                }
+
                 // Check which direction we are going in
 
                 if (destisunix) {
@@ -235,22 +277,37 @@ int convertfile (bool destisunix)
                         // that the second last character is CR
 
                         if (linetoconvert [linelength -2] != '\r') {
-                                // We have a malformed line, set the flag
+                                // This is a MS-DOS file, and the CR is missing
+                                // but this is not an error if we are not at
+                                // the end of the file
 
-                                malformedline = true;
+                                if (! feof (stdin)) {
+                                        // We have a malformed line, as we are
+                                        // not at the end of the file - set the
+                                        // malformed flag
+
+                                        malformedline = true;
+                                }
                         }
                 }
                         
                 // Check that the last character is LF (always true for MS-DOS
                 // and UNIX files)
 
-                if (linetoconvert [linelength -1] != '\n') {
-                        // We have a malformed line, set the flag
+                if ((linetoconvert [linelength -1] != '\n') && (! feof (stdin))) {
+                        // The LF was missing, but this is not a problem if we
+                        // are at the end of the file
 
-                        malformedline = true;
+                        if (! feof (stdin)) {
+                                // We have a malformed line, as we are not at
+                                // the end of the file. Set the malformed flag
+
+                                malformedline = true;
+                        }
                 }
 
-                // Check if the line is malformed
+                // Check if the line is malformed. This depends on whether or
+                // not it is the last line in the file
 
                 if (malformedline) {
                         // Display an error message, and return
@@ -260,13 +317,18 @@ int convertfile (bool destisunix)
                 }
 
                 // Strip the CR LF in MS-DOS files and LF in UNIX files from
-                // the line
+                // the line, if present. We only check that the LF is present
+                // as it will always be there in a valid line
 
-                linetoconvert [(destisunix ? linelength -2 : linelength -1)] = (char) 0;
+                if (linetoconvert [linelength -1] == '\n')
+                        linetoconvert [(destisunix ? linelength -2 : linelength -1)] = (char) 0;
 
-                // Write the line out to stdout
+                // Write the line out to stdout, stripping UTF characters if
+                // necessary. Always set the strip UTF flag to false, as it is
+                // no longer required
 
-                printf ("%s%s", linetoconvert, ((destisunix) ? "\n" : "\r\n"));
+                printf ("%s%s", (striputf ? (linetoconvert +3) : linetoconvert), ((destisunix) ? "\n" : "\r\n"));
+                striputf = false;
         }
 
         // We are done, so just return
