@@ -26,8 +26,14 @@ The tools included are:
                         with each line ending with a Carriage Return (CR) and a
                         Line Feed (LF).
 
-To build and install these tools (xsv2xsv, csv2tsv, tsv2csv, dos2unix, and
-unix2dos), run the following commands:
+        paths           A tool to return the location of a file in directories
+                        specified in a specified environment variable (or a
+                        list of directories). The first instance of the file is
+                        displayed by default, but all instances can be returned
+                        if requested
+
+To build and install these tools (xsv2xsv, csv2tsv, tsv2csv, dos2unix,
+unix2dos, and paths), run the following commands:
 
         % make
         % sudo make install
