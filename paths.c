@@ -54,45 +54,113 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # include <sys/param.h>
 
 int     main (int argc, char *argv []);
-int     findfile (const char *envvarorpaths, const char *filename, bool displayallfiles);
+int     findfile (const char *envvarorpaths, const char *filename, int mode, bool expandtilde, bool displayallfiles);
 void    DisplayHelp (void);
-void    OpenInputOrOutputFile (int fd, const char *InputOrOutputFile);
 
 extern int errno;
 
 int main (int argc, char *argv [])
 {
-        char    c;
-        bool    displayallfiles = false;
+        char    c, *modestring;
+        bool    expandtilde = false, displayallfiles = false;
+        int     modebit = 0, mode = F_OK;
 
         // Process the command line arguments
 
-        while ((c = getopt (argc, argv, "ah")) != -1) {
+        while ((c = getopt (argc, argv, "aem:h")) != -1) {
                 // Process the argument
 
                 switch (c) {
-                        case 'a':
-                                // Display all locations with the specified
-                                // filename, not just the first
+                case 'a':
+                        // Display all locations with the specified filename,
+                        // not just the first
 
-                                displayallfiles = true;
-                                break;
+                        displayallfiles = true;
+                        break;
 
-                        case 'h':
-                                // The user wants to get help, so display help
-                                // and exit
+                case 'e':
+                        // We need to expand the tilde if found at the
+                        // beginning of a path
 
-                                DisplayHelp ();
-                                exit (0);
-                                break;
+                        expandtilde = true;
+                        break;
 
-                        default:
-                                // We got a flag we do not recognize, so
-                                // display help and exit
+                case 'h':
+                        // The user wants to get help, so display help and exit
 
-                                DisplayHelp ();
-                                exit (-1);
-                                break;
+                        DisplayHelp ();
+                        exit (0);
+                        break;
+
+                case 'm':
+                        // The user specified a mode, which is one or more of
+                        // r, w, or x. Go through each of the characters in
+                        // the mode string, looking for the permission
+                        // characters
+
+                        for (modestring = optarg; modestring [0] != (char) 0; modestring ++) {
+                                // Check the character and make sure it is one
+                                // of r, w, or x, and record the equivalent
+                                // mode bit value (X_OK, W_OK, or R_OK)
+
+                                switch (modestring [0]) {
+                                case 'R':
+                                case 'r':
+                                        // Read bit
+
+                                        modebit = R_OK;
+                                        break;
+
+                                case 'W':
+                                case 'w':
+                                        // Write bit
+
+                                        modebit = W_OK;
+                                        break;
+
+                                case 'X':
+                                case 'x':
+                                        // Execute bit
+
+                                        modebit = X_OK;
+                                        break;
+
+                                default:
+                                        // Unknown bit
+
+                                        fprintf (stderr, "Error: illegal mode bit %c\n", modestring [0]);
+                                        DisplayHelp ();
+                                        exit (-1);
+                                        break;
+                                }
+
+                                // Check that we have not already seen the bit
+
+                                if ((mode & modebit) == modebit) {
+                                        // We have already seen this bit, so
+                                        // display an error and display the
+                                        // help
+
+                                        fprintf (stderr, "Error: duplicate mode bit %c\n", modestring [0]);
+                                        DisplayHelp ();
+                                        exit (-1);
+                                        break;
+                                }
+                                else {
+                                        // Add this modebit to the mode
+
+                                        mode |= modebit;
+                                }
+                        }
+                        break;
+
+                default:
+                        // We got a flag we do not recognize, so display help
+                        // and exit
+
+                        DisplayHelp ();
+                        exit (-1);
+                        break;
                 }
         }
 
@@ -119,7 +187,7 @@ int main (int argc, char *argv [])
         // Call the function that converts the separator in the input file to
         // those we want in the output file
 
-        return findfile (argv [0], argv [1], displayallfiles);
+        return findfile (argv [0], argv [1], mode, expandtilde, displayallfiles);
 }
 
 /* void DisplayHelp (void)
@@ -131,17 +199,22 @@ int main (int argc, char *argv [])
 void DisplayHelp (void)
 {
         printf ("Usage:\n\n");
-        printf ("\tfindfile [-a] [-h] <environment variable or paths> <filename>\n");
+        printf ("\tfindfile [-aeh] [-m mode] <envar | path> <filename>\n");
         printf ("\n");
         printf ("This program prints the path to the specified filename. The first argument is\n");
         printf ("the name of an environment variable that contains the paths or can be the paths\n");
         printf ("themselves. The paths should be separated by colons (':').\n");
         printf ("\n");
         printf ("By default, only the first path to the filename is returned. If the -a option is\n");
-        printf ("used, all locations are returned.\n");
+        printf ("used, all locations are returned. If the -e option is used, a tilde at the\n");
+        printf ("beginning of a path (and not expanded by the shell) is expanded to the value of\n");
+        printf ("the environment variable HOME. The mode of access required can be specified\n");
+        printf ("with the -m flag using r for read, w for write, and x for execute. The bits\n");
+        printf ("can be combined, e.g. rwx. If no mode is specified a simple check for existence\n");
+        printf ("of the file is made.\n");
 }
 
-/* int findfile (char *envvarorpaths, const char *file, bool displayallfiles)
+/* int findfile (char *envvarorpaths, const char *file, int mode, bool expandtilde, bool displayallfiles)
 **
 ** This function reads from the standard input (which could be a file or piped
 ** input). It looks for CR LF and translates it to LF when the destination is
@@ -149,7 +222,7 @@ void DisplayHelp (void)
 ** MS-DOS
 */
 
-int findfile (const char *envvarorpaths, const char *filename, bool displayallfiles)
+int findfile (const char *envvarorpaths, const char *filename, int mode, bool expandtilde, bool displayallfiles)
 {
         char *envpaths, *paths, *pathtocheck, fullpathname [MAXPATHLEN +1];
         bool foundfile = false;
@@ -179,9 +252,28 @@ int findfile (const char *envvarorpaths, const char *filename, bool displayallfi
 
         pathtocheck = strtok (paths, ":");
         while (pathtocheck != (char *) 0) {
-                // Build the full path name we check
+                // Build the full path name we check. If we have been asked to
+                // expand a tilde at the beginning of the path to the user's
+                // home directory, we do that
 
-                strcpy (fullpathname, pathtocheck);
+                if (expandtilde && (pathtocheck [0] == '~')) {
+                        // We need to expand a tilde to the user's home
+                        // directory, and append the remainder of the
+                        // path after the '/' (if it exists)
+
+                        strcpy (fullpathname, getenv ("HOME"));
+                        strcat (fullpathname, (pathtocheck + 1));
+                }
+                else {
+                        // There is no tilde to expand, or the user does not
+                        // want us to expand the tilde
+
+                        strcpy (fullpathname, pathtocheck);
+                }
+
+                // Check if there is a directory separator at the end of the
+                // path we just copied over
+
                 if (pathtocheck [strlen (pathtocheck) -1] != '/') {
                         // Append a slash to the end of the path
 
@@ -191,7 +283,7 @@ int findfile (const char *envvarorpaths, const char *filename, bool displayallfi
 
                 // Check if the file exists at the full path name location
 
-                if (! access (fullpathname, F_OK)) {
+                if (! access (fullpathname, mode)) {
                         // We found the file! Display the path and break from
                         // the loop unless we want to get all the paths
 
