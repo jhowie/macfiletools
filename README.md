@@ -30,7 +30,7 @@ The tools included are:
                         specified in a specified environment variable (or a
                         list of directories). The first instance of the file is
                         displayed by default, but all instances can be returned
-                        if requested
+                        if requested. The desired mode can be specified.
 
 To build and install these tools (xsv2xsv, csv2tsv, tsv2csv, dos2unix,
 unix2dos, and paths), run the following commands:
