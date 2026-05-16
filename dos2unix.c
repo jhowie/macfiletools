@@ -52,10 +52,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # include <strings.h>
 # include <sys/errno.h>
 
+# include "iohandler.h"
+
 int     main (int argc, char *argv []);
 int     convertfile (bool destisunix, bool utfhandling, bool ignorequotedcrlf, bool noappendcrlf);
 void    DisplayHelp (void);
-void    OpenInputOrOutputFile (int fd, const char *InputOrOutputFile);
 
 extern int errno;
 
@@ -154,13 +155,23 @@ int main (int argc, char *argv [])
                 // We have at least one argument. We always assume the first
                 // argument is an input file
 
-                OpenInputOrOutputFile (0, argv [0]);
+                if (! OpenInputOrOutputFile (0, argv [0])) {
+                        // An error occurred, and we could not redirtet stdin
+
+                        perror ("redirect stdin");
+                        exit errno;
+                }
         }
 
         if (argc == 2) {
                 // We also need to open an output file
 
-                OpenInputOrOutputFile (1, argv [1]);
+                if (! OpenInputOrOutputFile (1, argv [1])) {
+                        // An error occurred, and we could not redirect stdout
+
+                        perror ("redirect stdout");
+                        exit errno;
+                }
         }
 
         // Call the function that converts the separator in the input file to
@@ -212,38 +223,6 @@ void DisplayHelp (void)
         printf ("the input stream.\n");
 }
 
-/* void OpenInputOrOutputFile (int fd, const char *InputOrOutputFile)
-**
-** This function is used to open an input or output file, and duplicate the
-** file stream to the one specified (it will be either stdin or stdout)
-*/
-
-void OpenInputOrOutputFile (int fd, const char *InputOrOutputFile)
-{
-        int filedesc;
-
-        // Open the file. We open it read only if the fd specified is stdin and
-        // write only if it is stdout
-
-        filedesc = open (InputOrOutputFile, ((fd == 0) ? O_RDONLY : O_WRONLY));
-        if (filedesc == -1) {
-                // An error occurred, and we could not open the input
-                // file so display an error and exit
-
-                perror (InputOrOutputFile);
-                exit (errno);
-        }
-
-        // Duplicate the specified file descriptor
-
-        if (dup2 (filedesc, fd) == -1) {
-                // An error occurred and we could not duplicate the
-                // descriptor to stdin or stdout
-
-                perror (InputOrOutputFile);
-                exit (errno);
-        }                
-}
 
 /* int convertfile (bool destisunix, bool utfhandling, bool ignorequotedcrlf, bool noappendcrlf)
 **

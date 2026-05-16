@@ -1,1 +1,4 @@
 .DS_Store
+paths
+dos2unix
+xsv2xsv

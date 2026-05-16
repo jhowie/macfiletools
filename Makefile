@@ -16,11 +16,14 @@ install: all
 	install -l s -o root -g wheel $(BINDIR)/dos2unix $(BINDIR)/unix2dos
 	install -c -o root -g wheel -m 0555 paths $(BINDIR)/paths
 
-xsv2xsv: xsv2xsv.c
-	cc -o xsv2xsv xsv2xsv.c
+xsv2xsv: xsv2xsv.c iohandler.o
+	cc -o xsv2xsv xsv2xsv.c iohandler.o
 
-dos2unix: dos2unix.c
-	cc -o dos2unix dos2unix.c
+dos2unix: dos2unix.c iohandler.o
+	cc -o dos2unix dos2unix.c iohandler.o
 
-paths: paths.c
+paths:	paths.c
 	cc -o paths paths.c
+
+iohandler.o:	iohandler.c
+	cc -c iohandler.c
