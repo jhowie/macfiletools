@@ -6,6 +6,7 @@ clean:
 	rm -f xsv2xsv
 	rm -f dos2unix
 	rm -f paths
+	rm *.o
 
 install: all
 	install -d -o root -g wheel $(BINDIR)
