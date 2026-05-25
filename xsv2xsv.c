@@ -62,6 +62,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # include "iohandler.h"
 
 int     main (int argc, char *argv []);
+int     processseparatororquote (const char *optarg);
 int     xsv2xsv (int isv, int osv, int quote);
 void    DisplayHelp (void);
 
@@ -108,21 +109,45 @@ int main (int argc, char *argv [])
                                 // The user wants to specify the input
                                 // separator value
 
-                                isv = (int) *optarg;
+                                if ((isv = processseparatororquote (optarg)) == -1) { 
+                                        // We did not get a valid separator on
+                                        // the command line, so display an
+                                        // error and then the help
+
+                                        (void) fprintf (stderr, "Invalid input separator %s\n", optarg);
+                                        DisplayHelp ();
+                                        exit (-1);
+                                }
                                 break;
 
                         case 'o':
                                 // The user wants to specify the output
                                 // separator value
 
-                                osv = (int) *optarg;
+                                if ((osv = processseparatororquote (optarg)) == -1) {
+                                        // We did not get a valid separator on
+                                        // the command line, so display an
+                                        // error and then the help
+
+                                        (void) fprintf (stderr, "Invalid output separator %s\n", optarg);
+                                        DisplayHelp ();
+                                        exit (-1);
+                                };
                                 break;
 
                         case 'q':
                                 // The user wants to specify the quote
                                 // character value
                                
-                                quote = (int) *optarg;
+                                if ((quote = processseparatororquote(optarg)) == -1) {
+                                        // We did not get a valid quote on the
+                                        // command line, so display an error
+                                        // and then the help
+
+                                        (void) fprintf (stderr, "Invalid quote character %s\n", optarg);
+                                        DisplayHelp ();
+                                        exit (-1);
+                                }
                                 break;
 
                         default:
@@ -221,6 +246,111 @@ void DisplayHelp (void)
         printf ("separators for input and output streams. You can use the -q flag to change the\n");
         printf ("default quote character (which is '\"'). If only one filename is provided it is\n");
         printf ("assumed to be an input file.\n");
+        printf ("\n");
+        printf ("The input (<isv>), output (<osv>), and quote (<quote>) characters can be\n");
+        printf ("specified as printable characters, as \\\\t (horizontal tab), \\\\xHH (a two-digit\n");
+        printf ("hexadecimal character), or \\\\nnn (a three-digit octal number). The characters\n");
+        printf ("can be quoted, instead, such as \"\\t\" or \"\\x2C\".\n");
+}
+
+/* int processseparatororquote (const char *optarg)
+**
+** This function is used to process the input or output separator specified by
+** the user on the command line, and return the separator character. This is
+** necessary to process escaped characters such as '\t' (tab) and others
+*/
+
+int processseparatororquote (const char *optarg)
+{
+        int     returnvalue;
+
+        // Check to make sure we actually got a string
+
+        if (optarg == (char *) 0) {
+                // We did not get a valid string, so return an error value (-1)
+
+                return -1;
+        }
+
+        // Check the string to see what we got. If it begins with '\' we know
+        // we have to convert it
+
+        switch (optarg [0]) {
+        case 0:
+                // We got an empty string, this is an error so return the error
+                // value (-1)
+
+                return -1;
+                break;
+
+        case '\\':
+                // We have an escaped value, so we need to check the second
+                // character and process accordingly
+
+                switch (optarg [1]) {
+                case 't':
+                        // It is a tab. Check that the next character is a NULL
+                        // and if so, return the tab character else return an
+                        // error value (-1)
+
+                        if (optarg [2] == (char) 0) return (int) '\t';
+                        else return -1;
+                        break;
+
+                case 'x':
+                        // The user has specified a separator in the format
+                        // \xHH where HH is the hexadecimal value of the
+                        // separator. We assume that we have two hexadecimal
+                        // digits and just attempt the conversion. If it is
+                        // successful we return the value, otherwise we
+                        // return the error value (-1)
+
+                        if (sscanf ((optarg +2), "%x", &returnvalue) == 1) return returnvalue;
+                        else return -1;
+                        break;
+
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                        // The user specified an octal number, so we need to
+                        // convert it to the character value we return. We
+                        // assue we have two or three octal digits, and attempt
+                        // to convert them. If we are successful we return the
+                        // value, otherwise we return the error value (-1)
+
+                        if (sscanf ((optarg +1), "%o", &returnvalue) == 1) return returnvalue;
+                        else return -1;
+                        break;
+
+                default:
+                        // We got some value we do not recognize, so return an
+                        // error value (-1)
+
+                        return -1;
+                        break;
+                }
+                break;
+        default:
+                // We got a simple character. Make sure the second character is
+                // a NULL (end of string). If it is not we have an error
+
+                if (optarg [1] != (char) 0) {
+                        // We have an invalid separator, it can be only a
+                        // single character. Return the error value (-1)
+
+                        return -1;                        
+                }
+
+                // Return the character
+
+                return (int) optarg [0];
+                break;
+        }
+
+        // We should never, ever get here. Return the error value (-1)
+
+        return -1;
 }
 
 /* int xsv2xsv (int isv, int osv, int quote)
