@@ -2,3 +2,4 @@
 paths
 dos2unix
 xsv2xsv
+*.o
