@@ -88,10 +88,10 @@ int main (int argc, char *argv [])
 
                 switch (c) {
                         case 'a':
-                                // The user wants us to ensure there is a CR LF
-                                // (when going from UNIX to MS-DOS) or LF (when
-                                // going from MS-DOS to UNIX) at the end of the
-                                // output stream
+                                // The user does not want us to ensure there is
+                                // a CR LF (when going from UNIX to MS-DOS) or
+                                // LF (when going from MS-DOS to UNIX) at the
+                                // end of the output stream
 
                                 noappendcrlf = true;
                                 break;

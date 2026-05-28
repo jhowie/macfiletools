@@ -1,12 +1,20 @@
 BINDIR=/usr/local/bin
+LIBDIR=.
+#DEBUG=-g
+DEBUG=
 
-all: xsv2xsv dos2unix paths
+BINARIES= xsv2xsv dos2unix paths convcrlf
+
+.c.o:
+	cc -c $(DEBUG) $<
+
+all: $(BINARIES)
 
 clean:
-	rm -f xsv2xsv
-	rm -f dos2unix
-	rm -f paths
+	rm -f $(BINARIES)
 	rm *.o
+	rm *.a
+	rm -rf *.dSYM
 
 install: all
 	install -d -o root -g wheel $(BINDIR)
@@ -16,15 +24,22 @@ install: all
 	install -c -o root -g wheel -m 0555 dos2unix $(BINDIR)
 	install -l s -o root -g wheel $(BINDIR)/dos2unix $(BINDIR)/unix2dos
 	install -c -o root -g wheel -m 0555 paths $(BINDIR)/paths
+	install -c -o root -g wheel -m 0555 convcrlf $(BINDIR)/convcrlf
 
-xsv2xsv: xsv2xsv.c iohandler.o
-	cc -o xsv2xsv xsv2xsv.c iohandler.o
 
-dos2unix: dos2unix.c iohandler.o
-	cc -o dos2unix dos2unix.c iohandler.o
+libmacfiletools.a: iohandler.o getseparatororquote.o
+	ar -ur libmacfiletools.a iohandler.o getseparatororquote.o
+	ranlib libmacfiletools.a
+	
+xsv2xsv: xsv2xsv.o libmacfiletools.a
+	cc $(DEBUG) -o xsv2xsv xsv2xsv.o -L $(LIBDIR) -lmacfiletools
 
-paths:	paths.c
-	cc -o paths paths.c
+dos2unix: dos2unix.o libmacfiletools.a
+	cc $(DEBUG) -o dos2unix dos2unix.o -L $(LIBDIR) -lmacfiletools
 
-iohandler.o:	iohandler.c
-	cc -c iohandler.c
+paths:	paths.o
+	cc $(DEBUG) -o paths paths.o
+
+convcrlf: convcrlf.o libmacfiletools.a
+	cc $(DEBUG) -o convcrlf convcrlf.o -L $(LIBDIR) -lmacfiletools
+

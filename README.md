@@ -26,11 +26,28 @@ The tools included are:
                         with each line ending with a Carriage Return (CR) and a
                         Line Feed (LF).
 
+        convcrlf        A tool that transforms Carriage Return (CR) and Line
+                        Feed (LF) characters in the input stream, contained in
+                        quotes, into the tokens <CR> and <LF> (or tokens
+                        specified by the user), and wrapped by '<' and '>'
+                        characters. It can do the reverse transformation, too.
+
+The tools xsv2xsv (and csv2tsv and tsv2csv), dos2unix (and unix2dos), and
+convcrlf are all useful when dealing with data files that are maniupluated by
+awk, sed, sort, etc., and do not deal with field separators embedded in quotes,
+understand Carriage Returns, etc.
+
         paths           A tool to return the location of a file in directories
                         specified in a specified environment variable (or a
                         list of directories). The first instance of the file is
                         displayed by default, but all instances can be returned
                         if requested. The desired mode can be specified.
+
+The tool paths is most useful when writing Bash scripts, and you do not know
+which lib directory library files (especially for awk) are stored in. You can
+specify all library directories in an environment variable (e.g. LIBDIR), and
+invoke paths such as "awk -f `paths LIBDIR function.awk` ...". The path to the
+first instance of function.awk is returned.
 
 To build and install these tools (xsv2xsv, csv2tsv, tsv2csv, dos2unix,
 unix2dos, and paths), run the following commands:
