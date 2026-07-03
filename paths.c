@@ -199,7 +199,7 @@ int main (int argc, char *argv [])
 void DisplayHelp (void)
 {
         printf ("Usage:\n\n");
-        printf ("\tfindfile [-aeh] [-m mode] <envar | path> <filename>\n");
+        printf ("\tpaths [-aeh] [-m mode] <envar | path> <filename>\n");
         printf ("\n");
         printf ("This program prints the path to the specified filename. The first argument is\n");
         printf ("the name of an environment variable that contains the paths or can be the paths\n");
